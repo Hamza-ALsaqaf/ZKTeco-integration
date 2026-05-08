@@ -3,6 +3,23 @@ from zk import ZK
 from datetime import datetime
 
 
+def get_device_connection_settings(device_doc):
+    if not device_doc.ip:
+        frappe.throw(f"Please set IP Address for device {device_doc.name}")
+
+    if not device_doc.port:
+        frappe.throw(f"Please set Port for device {device_doc.name}")
+
+    device_password = (
+        device_doc.password if device_doc.password not in (None, "") else 0
+    )
+
+    try:
+        return str(device_doc.ip), int(device_doc.port), int(device_password)
+    except (TypeError, ValueError):
+        frappe.throw(f"Port and Password must be numeric for device {device_doc.name}")
+
+
 @frappe.whitelist(allow_guest=True)
 def test_connection(baseName):
     doc_name = baseName
@@ -13,9 +30,9 @@ def test_connection(baseName):
         device_doc = frappe.get_doc("Attendance Devices", device_name)
 
         if device_doc:
-            device_ip = str(device_doc.ip)
-            device_port = int(device_doc.port)
-            device_password = int(device_doc.password)
+            device_ip, device_port, device_password = get_device_connection_settings(
+                device_doc
+            )
 
             conn = connect_to_device(device_ip, device_port, device_password)
             if conn:
@@ -42,7 +59,10 @@ def connect_to_device(device_ip, device_port, device_password):
         conn.test_voice(index=10)
         return conn
     except Exception as e:
-        frappe.log_error(f"Failed to connect to device {device_ip}: {str(e)}", "Device Connection Error")
+        frappe.log_error(
+            f"Failed to connect to device {device_ip}: {str(e)}",
+            "Device Connection Error",
+        )
         return None
     finally:
         if conn:
@@ -68,9 +88,9 @@ def attendance_pull(baseName):
             device_doc = frappe.get_doc("Attendance Devices", device_name)
 
             if device_doc:
-                device_ip = str(device_doc.ip)
-                device_port = int(device_doc.port)
-                device_password = int(device_doc.password)
+                device_ip, device_port, device_password = get_device_connection_settings(
+                    device_doc
+                )
                 record.db_set("status", "Initiated")
 
                 frappe.enqueue(
